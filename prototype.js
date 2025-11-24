@@ -1,15 +1,7 @@
 const readline = require('readline-sync');
-
-// COORDINATES
-
-let xAxis = 0;
-let yAxis = 0;
-let theEnd = false;
-let rawMap = ["Home"];
-let rawTotalMap = ["home", "cave"]
-let playerMove = false;
-let statusCompass = 0;
-let statusMap = 0;
+const sounds = require('play-sound')(opts = {});
+let cavePlaylist = ["combat1.m4a", "combat2.m4a", "combat3.m4a"];
+let caveSelectSong = "";
 
 // LOCATIONS
 
@@ -25,6 +17,16 @@ class Location {
 const locations = {}
 locations["home"] = new Location("home", [0, 0], true, findHome);
 locations["cave"] = new Location("cave", [0, 1], false, findCave);
+
+let xAxis = 0;
+let yAxis = 0;
+let theEnd = false;
+let rawDisplayMap = ["Home"];
+let rawDiscoveredMap = [locations["home"]];
+let rawFullMap = [locations["home"], locations["cave"]];
+let playerMove = false;
+let statusCompass = 0;
+let statusMap = 0;
 
 function findHome() {
     let enterHome = "";
@@ -49,19 +51,22 @@ function findHome() {
 }
 
 function findCave() {
-    if (locations["cave"].discovered === false) { rawMap.push("Cave"); locations['cave'].discovered = true; }
+    if (locations["cave"].discovered === false) { rawDisplayMap.push("Cave"); rawDiscoveredMap.push(locations["cave"]); locations['cave'].discovered = true; }
     let enterCave = "";
+    let caveSong= "";
     do {
         enterCave = readline.question(`\n> You find a spooky cave.\n  Do you wish to enter? (y/n)\n>> `).toLowerCase();
         if (enterCave === "y") {
+            caveSelectSong = cavePlaylist[Math.floor(Math.random()*cavePlaylist.length)]
+            caveSong = sounds.play(caveSelectSong, function(err) { if (err && !err.killed) throw err });
             console.log(`\n> You enter the cave.\n  To the left is a dusty old knapsack.\n  On your right is a bottomless(?) sinkhole.`);
             let exploreCave = false;
             do {
                 exploreCave = readline.question(`> What do you do?\n  [1] Check the knapsack.\n  [2] Jump down the sinkhole.\n  [3] Leave.\n>> `);
                 switch (exploreCave) {
                     case "1": { container(caveKnapsack); break; }
-                    case "2": { console.log(`\n> You fall to your death. Obviously.\n`); theEnd = true; break; }
-                    case "3": { console.log(`\n> You hit the dusty trail! Good riddance to that deathtrap.`); break; }
+                    case "2": { console.log(`\n> You fall to your death. Obviously.\n`); theEnd = true; caveSong.kill(); break; }
+                    case "3": { console.log(`\n> You hit the dusty trail! Good riddance to that deathtrap.`); caveSong.kill(); break; }
                     default: { console.log(`> You ponder for a moment.`); }
                 }
                 if (exploreCave === "2" || exploreCave === "3") { return; }
@@ -288,16 +293,16 @@ function travel() {
     }
     else if (playerTraverse === "map") {
         if (statusMap === true) {
-            console.log(`\n> ${rawMap.sort().join(`\n  `)}`);
+            console.log(`\n> ${rawDisplayMap.sort().join(`\n  `)}`);
             let fastTravel = readline.question(`\n> Type a location to travel to or type 'return.'\n>> `).toLowerCase();
             if (fastTravel === "return") { return; }
-            for (let i = 0; i < rawMap.length; i++) {
-                if (rawMap[i].toLowerCase() === locations[fastTravel].name) {
+            for (let i = 0; i < rawDisplayMap.length; i++) {
+                if (rawDiscoveredMap[i] === locations[fastTravel]) {
                     playerMove = true;
                     xAxis = locations[fastTravel].coords[0];
                     yAxis = locations[fastTravel].coords[1];
                     playerLocation = `(${xAxis}, ${yAxis})`;
-                    for (let i = 0; i < rawTotalMap.length; i++) { if (playerLocation === `(${locations[rawTotalMap[i]].coords[0]}, ${locations[rawTotalMap[i]].coords[1]})` && playerMove === true) { locations[rawTotalMap[i]].explore(); } }
+                    for (let i = 0; i < rawDiscoveredMap.length; i++) { const marked = rawDiscoveredMap[i]; if (playerLocation === `(${marked.coords[0]}, ${marked.coords[1]})` && playerMove === true) { marked.explore(); } }
                     return;
                 }
             }
@@ -309,8 +314,8 @@ function travel() {
     if (yAxis < -5) { yAxis = -5; console.log(`> You've traveled too far. Turn back!`); }
     if (xAxis < -5) { xAxis = -5; console.log(`> You've traveled too far. Turn back!`); }
     playerLocation = `(${xAxis}, ${yAxis})`;
-
-    for (let i = 0; i < rawTotalMap.length; i++) { if (playerLocation === `(${locations[rawTotalMap[i]].coords[0]}, ${locations[rawTotalMap[i]].coords[1]})` && playerMove === true) { locations[rawTotalMap[i]].explore(); } }
+    
+    for (let i = 0; i < rawFullMap.length; i++) { const found = rawFullMap[i]; if (playerLocation === `(${found.coords[0]}, ${found.coords[1]})` && playerMove === true) { found.explore(); } }
 }
 
 do { travel(); } while (theEnd !== true);
